@@ -1,3 +1,4 @@
 data/
 **/*.pyc
 **/__init__.py
+**/weights/
