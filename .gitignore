@@ -1,4 +1,5 @@
 data/
 **/*.pyc
+**/*.swp
 **/__init__.py
 **/weights/
