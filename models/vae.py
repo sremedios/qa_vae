@@ -177,21 +177,20 @@ def res_vae(model_path, num_channels, dims, ds, learning_rate):
 
 
 
-
 def inception_module(prev_layer, ds=2):
-    a = Conv3D(64//ds, (1,1), strides=(1,1), padding='same')(prev_layer)
+    a = Conv3D(64//ds, (1,1,1), strides=(1,1,1), padding='same')(prev_layer)
 
-    b = Conv3D(96//ds, (1,1), strides=(1,1), activation='relu', padding='same')(prev_layer)
-    b = Conv3D(128//ds, (3,3), strides=(1,1), padding='same')(b)
+    b = Conv3D(96//ds, (1,1,1), strides=(1,1,1), activation='relu', padding='same')(prev_layer)
+    b = Conv3D(128//ds, (3,3,3), strides=(1,1,1), padding='same')(b)
 
-    c = Conv3D(96//ds, (1,1), strides=(1,1), activation='relu', padding='same')(prev_layer)
-    c = Conv3D(128//ds, (5,5), strides=(1,1), padding='same')(c)
+    c = Conv3D(96//ds, (1,1,1), strides=(1,1,1), activation='relu', padding='same')(prev_layer)
+    c = Conv3D(128//ds, (5,5,5), strides=(1,1,1), padding='same')(c)
 
-    d = AveragePooling3D((3,3), strides=(1,1), padding='same')(prev_layer)
-    d = Conv3D(32//ds, (1,1), strides=(1,1), padding='same')(d)
+    d = AveragePooling3D((3,3,3), strides=(1,1,1), padding='same')(prev_layer)
+    d = Conv3D(32//ds, (1,1,1), strides=(1,1,1), padding='same')(d)
 
-    e = MaxPooling3D((3,3), strides=(1,1), padding='same')(prev_layer)
-    e = Conv3D(32//ds, (1,1), strides=(1,1), padding='same')(e)
+    e = MaxPooling3D((3,3,3), strides=(1,1,1), padding='same')(prev_layer)
+    e = Conv3D(32//ds, (1,1,1), strides=(1,1,1), padding='same')(e)
 
     out_layer = concatenate([a,b,c,d,e], axis=-1)
 
@@ -199,7 +198,7 @@ def inception_module(prev_layer, ds=2):
 
 def inception_vae(model_path, num_channels, dims, ds, learning_rate):
 
-    intermediate_dim = 256 
+    intermediate_dim = 16 
     latent_dim = 2
     epsilon_std = 1.0
 
@@ -207,23 +206,19 @@ def inception_vae(model_path, num_channels, dims, ds, learning_rate):
     input_img = Input(shape=dims)
 
     x = inception_module(input_img, ds=ds)
-    x = BatchNormalization()(x)
     x = Activation('relu')(x)
-    x = MaxPooling3D((2,2), padding='same')(x)
+    x = MaxPooling3D((2,2,2), padding='same')(x)
 
     # residual inception modules
-    for _ in range(7):
+    for _ in range(4):
         x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
         y = Activation('relu')(x)
         x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
         x = add([x, y])
         x = Activation('relu')(x)
-        x = MaxPooling3D((2,2), padding='same')(x)
+        x = MaxPooling3D((2,2,2), padding='same')(x)
 
     flat = Flatten()(x)
-    #flat = GlobalMaxPooling3D()(x)
     hidden = Dense(intermediate_dim, activation='relu')(flat)
 
     z_mean = Dense(latent_dim)(hidden)
@@ -238,42 +233,38 @@ def inception_vae(model_path, num_channels, dims, ds, learning_rate):
     z = Lambda(sampling)([z_mean, z_log_var])
 
     x = Dense(intermediate_dim, activation='relu')(z)
-    x = Dense(2 * 2 * 64, activation='relu')(x)
-    x = Reshape(target_shape=(2,2,64))(x)
+    x = Dense(3*3*4*(384//ds), activation='relu')(x)
+    x = Reshape(target_shape=(3,3,4,(384//ds)))(x)
 
-    for _ in range(8):
-        x = UpSampling3D((2,2))(x)
+    for _ in range(5):
+        x = UpSampling3D((2,2,2))(x)
         x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
         y = Activation('relu')(x)
         x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
         x = add([x, y])
         x = Activation('relu')(x)
 
-    x = Conv3D(num_channels, (3,3), activation='linear', padding='same')(x)
-
-    # here is a second stage decode chance
-    for _ in range(2):
-        x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
-        y = Activation('relu')(x)
-        x = inception_module(x, ds=ds)
-        x = BatchNormalization()(x)
-        x = add([x, y])
-
-    decoded = Conv3D(num_channels, (3,3), activation='linear', padding='same')(x)
+    decoded = Conv3D(num_channels, (3,3,3), activation='linear', padding='same')(x)
 
     vae = Model(input_img, decoded)
 
-    def vae_loss(y_true, y_pred):
-        xent_loss = metrics.mean_squared_error(
-                K.flatten(y_true), 
-                K.flatten(y_pred))
-        kl_loss = -0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var),axis=-1)
-        return K.mean(xent_loss + kl_loss)
+    def mae_loss(y_true, y_pred):
+        return metrics.mean_absolute_error(K.flatten(y_true),  K.flatten(y_pred))
 
-    vae.compile(optimizer=Adam(lr=learning_rate), loss=vae_loss)
+    def kl_loss(y_true, y_pred):
+        return -0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var),axis=-1)
+
+    def disentangled_kl_loss(y_true, y_pred):
+        beta = 10
+        kl_loss = -0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var),axis=-1)
+        return beta * kl_loss
+
+    def vae_loss(y_true, y_pred):
+        return K.mean(mae_loss(y_true, y_pred) + disentangled_kl_loss(y_true, y_pred))
+
+    vae.compile(optimizer=Adam(lr=learning_rate),
+                loss=vae_loss,
+                metrics=[mae_loss, kl_loss, disentangled_kl_loss],)
 
     print(vae.summary())
 

@@ -12,8 +12,7 @@ if __name__ == '__main__':
     ########## DIRECTORY SETUP ##########
 
     ROOT_DIR = "data"
-    #TEST_DIR = os.path.join(ROOT_DIR, "test")
-    TEST_DIR = os.path.join(ROOT_DIR, "train")
+    TEST_DIR = os.path.join(ROOT_DIR, "t2_test")
     WEIGHT_DIR = os.path.join("models", "weights")
     model_path = os.path.join(WEIGHT_DIR, "vae.json")
 

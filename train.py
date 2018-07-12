@@ -1,6 +1,6 @@
 from utils.load_data import *
 from utils.display import *
-from models.vae import vae as vae
+from models.vae import vae, inception_vae
 
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 import os
@@ -42,16 +42,23 @@ if __name__ == '__main__':
     callbacks_list = [mc, es]
 
     ########## MODEL SETUP ##########
+    model = inception_vae(model_path=model_path,
+                          num_channels=X.shape[-1],
+                          ds=8,
+                          dims=dims,
+                          learning_rate=1e-4)
 
+    '''
     model = vae(model_path=model_path,
                 num_channels=X.shape[-1],
                 dims=dims,
                 learning_rate=1e-4)
+    '''
 
     ########## TRAIN ##########
 
     model.fit(X, X,
-              #validation_split=0.2,
+              validation_split=0.2,
               epochs=10000000,
-              batch_size=4,
+              batch_size=1,
               callbacks=callbacks_list)
