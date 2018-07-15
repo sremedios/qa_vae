@@ -1,9 +1,11 @@
 from utils.load_data import *
+from utils.load_slice_data import *
 from utils.display import *
-from models.vae import vae, inception_vae
+from models.vae import *
 
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 import os
+import time
 import sys
 
 if __name__ == '__main__':
@@ -20,12 +22,12 @@ if __name__ == '__main__':
 
     ########## LOAD DATA ##########
 
-    filenames = [os.path.join(TRAIN_DIR, x) for x in os.listdir(TRAIN_DIR)]
-    filenames.sort()
+    X, filenames, dims = load_middle_slice_data(TRAIN_DIR)
 
-    X, filenames = load_images(filenames)
-    dims = X.shape[1:]
-    print(dims)
+    if False:
+        limit = 10 
+        X = X[0:limit]
+        filenames = filenames[0:limit]
 
     ########## CALLBACKS ##########
 
@@ -42,11 +44,11 @@ if __name__ == '__main__':
     callbacks_list = [mc, es]
 
     ########## MODEL SETUP ##########
-    model = inception_vae(model_path=model_path,
-                          num_channels=X.shape[-1],
-                          ds=8,
-                          dims=dims,
-                          learning_rate=1e-4)
+    encoder, decoder, model = vae_2D(model_path=model_path,
+                                     num_channels=X.shape[-1],
+                                     ds=1,
+                                     dims=dims,
+                                     learning_rate=1e-4)
 
     '''
     model = vae(model_path=model_path,
@@ -57,8 +59,17 @@ if __name__ == '__main__':
 
     ########## TRAIN ##########
 
+    batch_size = 16
+    start_time = time.time()
     model.fit(X, X,
-              validation_split=0.2,
-              epochs=10000000,
-              batch_size=1,
-              callbacks=callbacks_list)
+              #validation_split=0.2,
+              epochs=1000000,
+              batch_size=batch_size,
+              callbacks=callbacks_list,
+              verbose=0)
+
+    print("Elapsed time: {:.4f}s".format(time.time() - start_time))
+
+    plot_latent_sampling((encoder, decoder),
+                         dims,
+                         batch_size=batch_size)
