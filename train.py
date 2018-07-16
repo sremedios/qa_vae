@@ -25,7 +25,7 @@ if __name__ == '__main__':
     X, filenames, dims = load_middle_slice_data(TRAIN_DIR)
 
     if False:
-        limit = 10 
+        limit = 10
         X = X[0:limit]
         filenames = filenames[0:limit]
 
@@ -44,11 +44,11 @@ if __name__ == '__main__':
     callbacks_list = [mc, es]
 
     ########## MODEL SETUP ##########
-    encoder, decoder, model = vae_2D(model_path=model_path,
-                                     num_channels=X.shape[-1],
-                                     ds=1,
-                                     dims=dims,
-                                     learning_rate=1e-4)
+    encoder, decoder, model = inception_vae_2D(model_path=model_path,
+                                               num_channels=X.shape[-1],
+                                               ds=2,
+                                               dims=dims,
+                                               learning_rate=1e-4)
 
     '''
     model = vae(model_path=model_path,
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     batch_size = 16
     start_time = time.time()
     model.fit(X, X,
-              #validation_split=0.2,
+              # validation_split=0.2,
               epochs=1000000,
               batch_size=batch_size,
               callbacks=callbacks_list,

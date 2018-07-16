@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 
+BETA = 1e-7
+
 
 def plot_latent_sampling(models,
                          dims,
@@ -26,7 +28,7 @@ def plot_latent_sampling(models,
 
     # display a 30x30 2D manifold of brains
     n = 30
-    brain_size = dims[0] 
+    brain_size = dims[0]
     figure = np.zeros((brain_size * n, brain_size * n))
     figure_name_space = "latent_space_sampling.png"
     # linearly spaced coordinates corresponding to the 2D plot
@@ -361,7 +363,7 @@ def inception_vae_2D(model_path, num_channels, dims, ds, learning_rate):
     latent_dim = 2
     epsilon_std = 1.0
 
-    # full vae
+    ########## ENCODER ##########
     input_img = Input(shape=dims)
 
     x = inception_module_2D(input_img, ds=ds)
@@ -390,9 +392,13 @@ def inception_vae_2D(model_path, num_channels, dims, ds, learning_rate):
         return z_mean + K.exp(z_log_var) * epsilon
 
     z = Lambda(sampling)([z_mean, z_log_var])
+    ########## END ENCODER ##########
 
-    x = Dense(intermediate_dim, activation='relu')(z)
-    x = Dense(3*3*(384//ds), activation='relu')(x)
+    ########## DECODER ##########
+    latent_inputs = Input(shape=(latent_dim,), name="z_sampling")
+
+    x = Dense(intermediate_dim, activation='relu')(latent_inputs)
+    x = Dense(3*3 * (384//ds), activation='relu')(x)
     x = Reshape(target_shape=(3, 3, (384//ds)))(x)
 
     for _ in range(5):
@@ -405,8 +411,16 @@ def inception_vae_2D(model_path, num_channels, dims, ds, learning_rate):
 
     decoded = Conv2D(num_channels, (3, 3),
                      activation='linear', padding='same')(x)
+    ########## END DECODER ##########
 
-    vae = Model(input_img, decoded)
+    # instantiate encoder/decoder
+    encoder = Model(input_img, [z_mean, z_log_var, z], name='encoder')
+    decoder = Model(latent_inputs, decoded, name='decoder')
+
+    # here, the [2] index selects the 'z' tensor output as input to decoder
+    # after passing inputs through the encoder
+    output = decoder(encoder(input_img)[2])
+    vae = Model(input_img, output)
 
     def mae_loss(y_true, y_pred, dims=dims):
         # need to scale up by number of pixels/voxels
@@ -417,7 +431,7 @@ def inception_vae_2D(model_path, num_channels, dims, ds, learning_rate):
         return -0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
 
     def disentangled_kl_loss(y_true, y_pred):
-        beta = 1  # 1e-7
+        beta = BETA
         kl_loss = -0.5 * K.sum(1 + z_log_var -
                                K.square(z_mean) - K.exp(z_log_var), axis=-1)
         return beta * kl_loss
@@ -435,7 +449,7 @@ def inception_vae_2D(model_path, num_channels, dims, ds, learning_rate):
     with open(model_path, 'w') as f:
         json.dump(json_string, f)
 
-    return vae
+    return encoder, decoder, vae
 
 
 def vae_2D(model_path, num_channels, dims, ds, learning_rate):
@@ -469,6 +483,7 @@ def vae_2D(model_path, num_channels, dims, ds, learning_rate):
 
     ########## DECODER ##########
     latent_inputs = Input(shape=(latent_dim,), name="z_sampling")
+
     x = Dense(intermediate_dim, activation='relu')(latent_inputs)
     x = Dense(3*3*(64//ds), activation='relu')(x)
     x = Reshape(target_shape=(3, 3, (64//ds)))(x)
@@ -499,7 +514,7 @@ def vae_2D(model_path, num_channels, dims, ds, learning_rate):
         return -0.5 * K.sum(1 + z_log_var - K.square(z_mean) - K.exp(z_log_var), axis=-1)
 
     def disentangled_kl_loss(y_true, y_pred):
-        beta = 1e-7
+        beta = BETA
         kl_loss = -0.5 * K.sum(1 + z_log_var -
                                K.square(z_mean) - K.exp(z_log_var), axis=-1)
         return beta * kl_loss
