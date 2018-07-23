@@ -12,17 +12,20 @@ if __name__ == '__main__':
     ########## DIRECTORY SETUP ##########
 
     ROOT_DIR = "data"
-    TEST_DIR = os.path.join(ROOT_DIR, "test", sys.argv[1])
+    TEST_DIR = os.path.join(ROOT_DIR, "test")
+    TEST_DIR = os.path.join(ROOT_DIR, "t2_test")
+    TEST_DIR = os.path.join(ROOT_DIR, "train")
     RECON_DIR = os.path.join(ROOT_DIR, "reconstructions")
+    WEIGHT_DIR = os.path.join("models", "weights")
+    model_path = os.path.join(WEIGHT_DIR, "vae.json")
 
-    for d in [ROOT_DIR, TEST_DIR, RECON_DIR]:
+    for d in [ROOT_DIR, TEST_DIR, RECON_DIR, WEIGHT_DIR]:
         if not os.path.exists(d):
             os.makedirs(d)
 
     ########## MODEL SETUP ##########
 
-    weight_path = sys.argv[2]
-    model_path = sys.argv[3]
+    weight_path = os.path.join(WEIGHT_DIR, "vae_best_weights.hdf5")
 
     with open(model_path) as json_data:
         model = model_from_json(json.load(json_data))
@@ -30,15 +33,14 @@ if __name__ == '__main__':
 
     ########## LOAD DATA ##########
 
-    #X_T1, X_T2, filenames_T1, filenames_T2, dims = load_slice_data(TEST_DIR)
+    filenames = [os.path.join(TEST_DIR, x) for x in os.listdir(TEST_DIR)]
+    #filenames.sort()
 
     # test on a subset
-    filenames = [os.path.join(TEST_DIR, x) for x in os.listdir(TEST_DIR)]
-    filenames.sort()
     filenames = filenames[0:5]
 
     # tmp affine to use for all images
-    #affine = nib.load(filenames[0]).affine
+    affine = nib.load(filenames[0]).affine
 
     ########## TEST ##########
 
